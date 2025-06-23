@@ -24,9 +24,9 @@ class MirrorDescent(Optimizer):
                     p.data = mirror_map(p.data, grad, lr)
         return loss
     
-def test_loop(mirror_map, x_init, func, loss_func, max_iter=50000, thresholds=True):
+def test_loop(mirror_map, x_init, func, noise_const = 0.02, max_iter=5000, thresholds=True, lr=1e-2):
     x = torch.nn.Parameter(x_init)
-    optimizer = MirrorDescent([x], lr=1e-3, mirror_map=mirror_map)
+    optimizer = MirrorDescent([x], lr=lr, mirror_map=mirror_map)
 
     trajectory = [x.detach().clone()]
     losses = []
@@ -35,11 +35,13 @@ def test_loop(mirror_map, x_init, func, loss_func, max_iter=50000, thresholds=Tr
 
     for i in range(max_iter):
         optimizer.zero_grad()
-        loss = loss_func(x)
+        noise = torch.randn_like(x) * noise_const / (1 + i * 0.01)
+        loss = func(x)
+        losses.append(loss.item())
+        loss = func(x + noise)
         loss.backward()
         optimizer.step()
         trajectory.append(x.detach().clone())
-        losses.append(loss.item())
         grad_norm = torch.norm(x.grad.detach())
         if grad_norm < tolerance:
             print(f"Early stopping at step {i}, final point: {x.detach()}, grad norm: {grad_norm:.6f}")
